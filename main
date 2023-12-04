@@ -1,0 +1,451 @@
+// Jar Opener
+// Zach Kushnir
+// 05/19/2023
+
+#include <stdio.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+
+volatile int x = 1; //determines which case
+volatile int y = 1; //determines the case pt2
+volatile int i = 0; // determines top or bottom actuator
+char sensorvalue = 0; //first sensor
+char topsensor = 0; //second sensor
+
+int phase_step = 1; // We will use wave stepping, so the steps are numbered 1-4, then will repeat.
+int phase_step2 = 1;
+
+
+//void wait(int multiple);
+
+void step_CW( void );
+void step_CCW( void );
+void step_CW_3( void );
+void step_CCW_3( void );
+void wait(volatile int multiple, volatile char time_choice);
+void delay_T_msec_timer0(char choice);
+
+
+
+
+
+int main(void)
+{
+			
+		DDRC = 0b00000000; 	//input
+		DDRB = 0b11111111;  // LEDS to confirm outputs are working
+		DDRD = 0b11111111;
+		
+		PORTB = 0x00;		
+		PORTC = 0x00;
+		PORTD = 0x00;
+		
+		/*
+		ADMUX = 0b00100000; //bit 6 no ref ... bit 5 LEFT justified
+		PRR = 0x00; //clear to turn on ADC
+		ADCSRA = 0b10000111; //enable ADC ... but not turned on yet ... 128 prescaler
+		*/
+		
+		OCR0A = 0x00;       // Load $00 into OCR0 to set initial duty cycle to 0 (motor off)
+		TCCR0A = 0b10100011; //1<<COM0A1 | 0<<COM0A0 | 1<<WGM01 | 1<<WGM00;      // Set non-inverting mode on OC0A pin (COMA1:0 = 10; Fast PWM (WGM1:0 bits = bits 1:0 = 11) (Note that we are not affecting OC0B because COMB0:1 bits stay at default = 00)
+		TCCR0B = 0b00000011; //0<<CS02 | 1<<CS01 | 1<<CS00; // Set base PWM frequency (CS02:0 - bits 2-0 = 011 for prescaler of 64, for approximately 1kHz base frequency)
+		// PWM is now running on selected pin at selected base frequency.  Duty cycle is set by loading/changing value in OCR0A register.
+		
+
+		////////////////////////////////////////
+
+
+while (1)
+{	
+		
+				PORTB = 0x00;
+				PORTC = 0x00;
+				wait(10,2);
+				
+		if (PINC & 0b00100000)
+		{
+			
+			wait(500,1);
+			PORTB = 0b00000001;
+			wait(50,1);
+			PORTB = 0b00000000;
+			wait(50,1);
+			PORTB = 0b00000001;
+			wait(50,1);
+			PORTB = 0b00000000;
+			wait(50,1);
+			PORTB = 0b00000001;			
+			wait(50,1);
+			PORTB = 0b00000000;
+			wait(50,1);
+			PORTB = 0b00000001;
+			wait(50,1);
+			PORTB = 0b00000000;
+
+			
+			i = 0;
+			
+			
+			while (i == 0) //bottom actuator
+
+
+{
+
+
+
+		ADMUX = 0b00100000; //bit 6 no ref ... bit 5 LEFT justified
+		PRR = 0x00; //clear to turn on ADC
+		ADCSRA = 0b10000111; //enable ADC ... but not turned on yet ... 128 prescaler
+
+
+	ADCSRA = 0b11000111;	//bit 7 turn it onnn (enable the ADC conversion)
+	
+	
+	sensorvalue = ADCH;
+
+			
+			if (sensorvalue < 215 )
+			{
+				x=1;
+			}
+
+						
+			else
+						
+			{
+				x = 2;
+			}
+			
+			
+			
+			
+			switch (x)
+			
+			{
+				case 1: //blinking LED as stepper motor gets closer
+
+
+			PORTB = 0b00000001;
+
+			step_CW(); //step_CW()
+			wait(25,2); // delay so that motor doesn't skip steps
+
+			PORTB = 0b00000000;
+
+			step_CW(); //step_CW()
+			wait(25,2); // delay so that motor doesn't skip steps
+			//start top stepper motor 
+				
+						
+				break;
+
+
+				case 2:
+
+
+//stop stepper motor
+//start second motor
+
+
+				
+i = 1;				
+		
+				break;
+				
+
+	
+			}
+		
+	}
+	PORTB = 0b00000001;
+	wait(2000,2);
+	i=1;
+	PORTB = 0b00000000;
+	
+while ((i == 1))	//top actuator
+
+{
+	
+	//y=0;
+	ADMUX = 0b00100001; //bit 6 no ref ... bit 5 LEFT justified
+	PRR = 0x00; //clear to turn on ADC
+	ADCSRA = 0b10000111; //enable ADC ... but not turned on yet ... 128 prescaler
+	
+	
+	
+	ADCSRA = 0b11000111;	//bit 7 turn it onnn (enable the ADC conversion)
+	
+	topsensor = 0;
+	topsensor = ADCH;
+
+	
+	
+	
+	
+	if (topsensor < 216 )
+	{
+		y = 1;
+	}
+	
+	
+	
+	else
+	
+	{
+		y = 2;
+	
+	}
+	
+	
+	
+	
+	switch (y)
+	
+	{
+		case 1:
+
+	
+	//stepper motor 2 will continue to get closer
+	
+	PORTB = 0b00000001;
+
+	step_CW_3(); //step_CW()
+	wait(25,2); // delay so that motor doesn't skip steps
+
+	PORTB = 0b00000000;
+
+	step_CW_3(); //step_CW()
+	wait(25,2); // delay so that motor doesn't skip steps
+	//start top stepper motor
+		
+	
+		break;
+
+
+		case 2:
+
+		//turn on all the motors
+		
+		PORTB = 0b00001110; // turn on all 3 motors
+		wait(3000,2);
+		PORTB = 0b00000000; // turn on all 3 motors
+		i = 2;
+
+		PORTB = 0b00000001;
+		wait(1000,2);
+		
+		x=0;
+		
+		while((x<100))
+		{
+			step_CCW();
+			wait(25,2);
+			x++;
+		}
+		x=0;
+		while((x<700))
+		{
+			step_CCW_3();
+			wait(25,2);
+			x++;
+		}
+		
+		break;
+	
+	
+
+	
+	}
+	
+	
+	
+
+}
+	
+
+		}
+
+		else
+		{
+			PORTB = 0b00000000;
+		}
+		
+		
+    }
+}
+
+void step_CCW()
+{
+	// This function advances the motor counter-clockwise one step.  Follow the full-wave stepping table in Stepper Motor Control.ppt for MEMS 1049 course. phase1a = PORTD_7, phase1b = PORTD_6
+	// phase2a = PORTD_5, phase2b = PORTD_4
+
+	switch (phase_step) {
+		case 1:
+		// step to 2
+		PORTD = 0b00010000;
+		phase_step = 2;
+		break;
+		case 2:
+		// step to 3
+		PORTD = 0b01000000;
+		phase_step = 3;
+		break;
+		case 3:
+		// step to 4;
+		PORTD = 0b00100000;
+		phase_step = 4;
+		break;
+		case 4:
+		// step to 1;
+		PORTD = 0b10000000;
+		phase_step = 1;
+	break;  }
+}// end step_CCW
+
+void step_CCW_3()
+{
+	// This function advances the motor counter-clockwise one step.  Follow the full-wave stepping table in Stepper Motor Control.ppt for MEMS 1049 course. phase1a = PORTD_7, phase1b = PORTD_6
+	// phase2a = PORTD_5, phase2b = PORTD_4
+
+	switch (phase_step2) {
+		case 1:
+		// step to 2
+		PORTD = 0b00000001;
+		phase_step2 = 2;
+		break;
+		case 2:
+		// step to 3
+		PORTD = 0b00000100;
+		phase_step2 = 3;
+		break;
+		case 3:
+		// step to 4;
+		PORTD = 0b00000010;
+		phase_step2 = 4;
+		break;
+		case 4:
+		// step to 1;
+		PORTD = 0b00001000;
+		phase_step2 = 1;
+	break;  }
+}// end step_CCW
+
+
+void step_CW() {
+	// This function advances the motor clockwise one step.  Follow the full-wave stepping table in Stepper Motor Control.ppt for MEMS 1049 course. Our stepper motor phases are assigned to Port pins as follows: phase1a = PORTD_7, phase1b = PORTD_6, phase2a = PORTD_5, phase2b = PORTD_4
+
+	switch (phase_step) {
+		case 1:
+		// step to 4
+		PORTD = 0b00100000;
+		phase_step = 4;
+		break;
+		case 2:
+		// step to 1
+		PORTD = 0b10000000;
+		phase_step = 1;
+		break;
+		case 3:
+		// step to 2;
+		PORTD = 0b00010000;
+		phase_step = 2;
+		break;
+		case 4:
+		// step to 3;
+		PORTD = 0b01000000;
+		phase_step = 3;
+	break;  }
+}// end step_CW
+
+void step_CW_3() {
+	// This function advances the motor clockwise one step.  Follow the full-wave stepping table in Stepper Motor Control.ppt for MEMS 1049 course. Our stepper motor phases are assigned to Port pins as follows: phase1a = PORTD_7, phase1b = PORTD_6, phase2a = PORTD_5, phase2b = PORTD_4
+
+	switch (phase_step2) {
+		case 1:
+		// step to 4
+		PORTD = 0b00000010;
+		phase_step2 = 4;
+		break;
+		case 2:
+		// step to 1
+		PORTD = 0b00001000;
+		phase_step2 = 1;
+		break;
+		case 3:
+		// step to 2;
+		PORTD = 0b000000001;
+		phase_step2 = 2;
+		break;
+		case 4:
+		// step to 3;
+		PORTD = 0b00000100;
+		phase_step2 = 3;
+	break;  }
+}// end step_CW
+
+
+
+void wait(volatile int multiple, volatile char time_choice) {
+	/* This subroutine calls others to create a delay.
+		 Total delay = multiple*T, where T is in msec and is the delay created by the called function.
+	
+		Inputs: multiple = number of multiples to delay, where multiple is the number of times an actual delay loop is called.
+		Outputs: None
+	*/
+	
+	while (multiple > 0) {
+		delay_T_msec_timer0(time_choice); 
+		multiple--;
+	}
+} // end wait()
+
+
+
+
+
+void delay_T_msec_timer0(volatile char choice) {
+    //*** delay T ms **
+    /* This subroutine creates a delay of T msec using TIMER0 with prescaler on clock, where, for a 16MHz clock:
+    		for Choice = 1: T = 0.125 msec for prescaler set to 8 and count of 250 (preload counter with 5)
+    		for Choice = 2: T = 1 msec for prescaler set to 64 and count of 250 (preload counter with 5)
+    		for Choice = 3: T = 4 msec for prescaler set to 256 and count of 250 (preload counter with 5)
+    		for Choice = 4: T = 16 msec for prescaler set to 1,024 and count of 250 (preload counter with 5)
+			for Choice = Default: T = .0156 msec for no prescaler and count of 250 (preload counter with 5)
+	
+			Inputs: None
+			Outputs: None
+	*/
+	
+	TCCR0A = 0x00; // clears WGM00 and WGM01 (bits 0 and 1) to ensure Timer/Counter is in normal mode.
+	TCNT0 = 0;  // preload value for testing on count = 250
+	// preload value for alternate test on while loop: TCNT0 = 5;  // preload load TIMER0  (count must reach 255-5 = 250)
+	
+	switch ( choice ) { // choose prescaler
+		case 1:
+			TCCR0B = 0b00000010; //1<<CS01;	TCCR0B = 0x02; // Start TIMER0, Normal mode, crystal clock, prescaler = 8
+		break;
+		case 2:
+			TCCR0B =  0b00000011; //1<<CS01 | 1<<CS00;	TCCR0B = 0x03;  // Start TIMER0, Normal mode, crystal clock, prescaler = 64
+		break;
+		case 3:
+			TCCR0B = 0b00000100; //1<<CS02;	TCCR0B = 0x04; // Start TIMER0, Normal mode, crystal clock, prescaler = 256
+		break; 
+		case 4:
+			TCCR0B = 0b00000101; //1<<CS02 | 1<<CS00; TCCR0B = 0x05; // Start TIMER0, Normal mode, crystal clock, prescaler = 1024
+		break;
+		default:
+			TCCR0B = 0b00000001; //1<<CS00; TCCR0B = 0x01; Start TIMER0, Normal mode, crystal clock, no prescaler
+		break;
+	}
+	
+	while (TCNT0 < 0xFA); // exits when count = 250 (requires preload of 0 to make count = 250)
+	// alternate test on while loop: while ((TIFR0 & (0x1<<TOV0)) == 0); // wait for TOV0 to roll over:
+	// How does this while loop work?? See notes
+	
+	TCCR0B = 0x00; // Stop TIMER0
+	//TIFR0 = 0x1<<TOV0;  // Alternate while loop: Clear TOV0 (note that this is a nonintuitive bit in that it is cleared by writing a 1 to it)
+	
+} // end delay_T_msec_timer0()
+
+
